@@ -891,12 +891,16 @@ function DefrostFlow({ onBack }) {
   const [synced, setSynced] = useState(false);
   const docId = "defrost_" + todayKey();
 
-  // Load today's defrost list from Firestore on mount
   useEffect(() => {
+    // Timeout fallback — show content even if Firebase is slow
+    const timeout = setTimeout(() => setSynced(true), 3000);
+
     const db = window._db;
-    if (!db) return;
+    if (!db) { setSynced(true); return () => clearTimeout(timeout); }
+
     const ref = db.collection("defrost").doc(docId);
     const unsub = ref.onSnapshot(snap => {
+      clearTimeout(timeout);
       if (snap.exists()) {
         const data = snap.data();
         setSelectedItems(data.items || []);
@@ -904,8 +908,8 @@ function DefrostFlow({ onBack }) {
         if ((data.items || []).length > 0) setStep("warehouse");
       }
       setSynced(true);
-    });
-    return () => unsub();
+    }, () => { clearTimeout(timeout); setSynced(true); }); // error handler
+    return () => { unsub(); clearTimeout(timeout); };
   }, [docId]);
 
   function saveToFirebase(items, amts) {
@@ -981,18 +985,20 @@ function ChecklistPage({ tasks, storageKey, title, emoji }) {
   const docId = storageKey + "_" + todayKey();
 
   useEffect(() => {
+    const timeout = setTimeout(() => setSynced(true), 3000);
     const db = window._db;
-    if (!db) return;
+    if (!db) { setSynced(true); return () => clearTimeout(timeout); }
     const ref = db.collection("checklists").doc(docId);
     const unsub = ref.onSnapshot(snap => {
+      clearTimeout(timeout);
       if (snap.exists()) {
         setChecked(snap.data().checked || {});
       } else {
         setChecked({});
       }
       setSynced(true);
-    });
-    return () => unsub();
+    }, () => { clearTimeout(timeout); setSynced(true); });
+    return () => { unsub(); clearTimeout(timeout); };
   }, [docId]);
 
   function toggle(i) {
@@ -1052,20 +1058,20 @@ function TasksPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    const timeout = setTimeout(() => setLoading(false), 3000);
     const db = window._db;
-    if (!db) return;
+    if (!db) { setLoading(false); return () => clearTimeout(timeout); }
     const ref = db.collection("tasks").doc("daily");
     const unsub = ref.onSnapshot(snap => {
+      clearTimeout(timeout);
       if (snap.exists()) {
-        const data = snap.data().tasks || [];
-        // sort: undone first, done last
-        setTasks(data);
+        setTasks(snap.data().tasks || []);
       } else {
         setTasks([]);
       }
       setLoading(false);
-    });
-    return () => unsub();
+    }, () => { clearTimeout(timeout); setLoading(false); });
+    return () => { unsub(); clearTimeout(timeout); };
   }, []);
 
   function saveTasks(updated) {
