@@ -12,6 +12,26 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-app.js";
+    import { getFirestore, doc, setDoc, onSnapshot, getDoc } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyDu99kP9QGz0JPvxPIDA69XhpixkulzkKc",
+      authDomain: "rapidos-4945b.firebaseapp.com",
+      projectId: "rapidos-4945b",
+      storageBucket: "rapidos-4945b.firebasestorage.app",
+      messagingSenderId: "829995290105",
+      appId: "1:829995290105:web:0d424c5773e4fbd23f4128",
+      measurementId: "G-GJ1W3NML35"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    // Expose to global scope for Babel script
+    window._firebase = { db, doc, setDoc, onSnapshot, getDoc };
+  </script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     body { background: #0d0d0d; font-family: 'Heebo', sans-serif; color: #f0ede6; }
@@ -266,7 +286,7 @@
       display: flex; flex-direction: column; align-items: center; gap: 3px;
       background: none; border: none; cursor: pointer;
       color: #555; font-family: 'Heebo', sans-serif; font-size: 0.68rem; font-weight: 600;
-      padding: 6px 18px; border-radius: 14px;
+      padding: 6px 8px; border-radius: 14px;
       transition: color 0.15s, transform 0.1s;
     }
     .tab-item .tab-icon { font-size: 1.35rem; transition: transform 0.15s; }
@@ -409,6 +429,66 @@
     }
     .detail-hero h1 { font-size: 1.5rem; font-weight: 900; color: #f0ede6; }
     .detail-hero .ratio-badge { margin-top: 8px; }
+
+    /* ── Checklists ── */
+    .checklist-page { max-width: 500px; margin: 0 auto; padding: 18px 18px 40px; }
+    .progress-wrap {
+      background: linear-gradient(135deg, #1a1a1a 0%, #161616 100%);
+      border: 1px solid #252525; border-radius: 16px;
+      padding: 16px 18px; margin-bottom: 16px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.3);
+    }
+    .progress-top { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 10px; }
+    .progress-top .p-label { font-size: 0.85rem; color: #999; font-weight: 600; }
+    .progress-top .p-count { font-size: 0.8rem; color: #555; }
+    .progress-track { height: 8px; background: #111; border-radius: 8px; overflow: hidden; }
+    .progress-fill {
+      height: 100%; border-radius: 8px;
+      background: linear-gradient(90deg, #e03a2c, #f0a050);
+      transition: width 0.35s ease;
+    }
+    .progress-fill.done { background: linear-gradient(90deg, #3ecf8e, #7dd3a8); }
+
+    .check-item {
+      display: flex; align-items: center; gap: 13px;
+      background: linear-gradient(135deg, #1c1c1c 0%, #171717 100%);
+      border: 1px solid #262626; border-radius: 15px;
+      padding: 14px 16px; margin-bottom: 9px;
+      cursor: pointer;
+      transition: all 0.18s ease;
+    }
+    .check-item:hover { border-color: #383838; }
+    .check-item:active { transform: scale(0.98); }
+    .check-item.checked { background: rgba(62,207,142,0.05); border-color: rgba(62,207,142,0.2); }
+    .check-box {
+      width: 26px; height: 26px; flex-shrink: 0;
+      border: 2px solid #3a3a3a; border-radius: 9px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.95rem; color: transparent;
+      transition: all 0.18s ease;
+    }
+    .check-item.checked .check-box {
+      background: #3ecf8e; border-color: #3ecf8e; color: #0d0d0d;
+    }
+    .check-text { flex: 1; font-size: 0.92rem; color: #ccc; line-height: 1.4; transition: all 0.18s; }
+    .check-item.checked .check-text { color: #555; text-decoration: line-through; }
+
+    .checklist-done-banner {
+      text-align: center; padding: 22px 0 6px;
+      color: #7dd3a8; font-size: 1.05rem; font-weight: 800;
+      animation: fadeSlideUp 0.3s ease both;
+    }
+    .checklist-reset {
+      width: 100%; padding: 13px; margin-top: 14px;
+      background: #1a1a1a; border: 1px solid #2e2e2e; border-radius: 13px;
+      color: #777; font-family: 'Heebo', sans-serif; font-size: 0.88rem;
+      cursor: pointer; transition: all 0.15s;
+    }
+    .checklist-reset:hover { border-color: #4a4a4a; color: #bbb; }
+    .daily-note { text-align: center; font-size: 0.72rem; color: #444; margin-top: 12px; }
+
+    .tile-open { background: linear-gradient(145deg, #3a2c0c 0%, #211a08 100%); }
+    .tile-close { background: linear-gradient(145deg, #241038 0%, #150a20 100%); }
   </style>
 </head>
 <body>
@@ -740,12 +820,53 @@ function DefrostFlow({ onBack }) {
   const [step, setStep] = useState("plan"); // "plan" | "warehouse"
   const [selectedItems, setSelectedItems] = useState([]);
   const [amounts, setAmounts] = useState({});
+  const [synced, setSynced] = useState(false);
+  const docId = "defrost_" + todayKey();
+
+  // Load today's defrost list from Firestore on mount
+  useEffect(() => {
+    const fb = window._firebase;
+    if (!fb) return;
+    const { db, doc, onSnapshot } = fb;
+    const ref = doc(db, "defrost", docId);
+    const unsub = onSnapshot(ref, snap => {
+      if (snap.exists()) {
+        const data = snap.data();
+        setSelectedItems(data.items || []);
+        setAmounts(data.amounts || {});
+        if ((data.items || []).length > 0) setStep("warehouse");
+      }
+      setSynced(true);
+    });
+    return () => unsub();
+  }, [docId]);
+
+  function saveToFirebase(items, amts) {
+    const fb = window._firebase;
+    if (!fb) return;
+    const { db, doc, setDoc } = fb;
+    setDoc(doc(db, "defrost", docId), { items, amounts: amts });
+  }
 
   function goToWarehouse(items, amts) {
     setSelectedItems(items);
     setAmounts(amts);
     setStep("warehouse");
+    saveToFirebase(items, amts);
   }
+
+  function handleReset() {
+    setStep("plan");
+    setSelectedItems([]);
+    setAmounts({});
+    saveToFirebase([], {});
+  }
+
+  if (!synced) return (
+    <div style={{textAlign:"center",padding:"60px 0",color:"#555",fontSize:"0.9rem"}}>
+      מתחבר...
+    </div>
+  );
 
   if (step === "warehouse") {
     return (
@@ -753,11 +874,113 @@ function DefrostFlow({ onBack }) {
         items={selectedItems}
         amounts={amounts}
         onBack={() => setStep("plan")}
-        onReset={() => { setStep("plan"); setSelectedItems([]); setAmounts({}); }}
+        onReset={handleReset}
       />
     );
   }
   return <DefrostPlanPage onDone={goToWarehouse} onBack={onBack} />;
+}
+
+const OPENING_TASKS = [
+  "להדליק פלאנצ'ה וצ'יפסר",
+  "לבדוק טמפרטורות מקררים ולרשום",
+  "להוציא הפשרות מהמקפיא לפי הרשימה",
+  "למלא תחנת עבודה — רטבים וירקות חתוכים",
+  "לבדוק מלאי טורטיות ולחמניות",
+  "להכין סלסה / גואקמולי אם חסר",
+  "לנגב משטחי עבודה ולסדר תחנה",
+  "לבדוק שיש מספיק כלים נקיים וקופסאות",
+  "להדליק שילוט ומוזיקה",
+];
+
+const CLOSING_TASKS = [
+  "לכבות פלאנצ'ה וצ'יפסר ולנקות",
+  "לעטוף ולתייג את כל המוצרים הפתוחים",
+  "להחזיר הכל למקררים — לבדוק טמפרטורות",
+  "לרשום מה חסר למחר (הפשרות + הכנות)",
+  "לשטוף כלים ולרוקן פחים",
+  "לנקות רצפה ומשטחים",
+  "לסגור גז וברזים",
+  "לכבות אורות ושילוט, לנעול",
+];
+
+function todayKey() {
+  const d = new Date();
+  return d.getFullYear() + "-" + (d.getMonth()+1) + "-" + d.getDate();
+}
+
+function ChecklistPage({ tasks, storageKey, title, emoji }) {
+  const [checked, setChecked] = useState({});
+  const [synced, setSynced] = useState(false);
+  const docId = storageKey + "_" + todayKey();
+
+  useEffect(() => {
+    const fb = window._firebase;
+    if (!fb) return;
+    const { db, doc, onSnapshot } = fb;
+    const ref = doc(db, "checklists", docId);
+    const unsub = onSnapshot(ref, snap => {
+      if (snap.exists()) {
+        setChecked(snap.data().checked || {});
+      } else {
+        setChecked({});
+      }
+      setSynced(true);
+    });
+    return () => unsub();
+  }, [docId]);
+
+  function toggle(i) {
+    const fb = window._firebase;
+    if (!fb) return;
+    const { db, doc, setDoc } = fb;
+    const newChecked = { ...checked, [i]: !checked[i] };
+    setChecked(newChecked);
+    setDoc(doc(db, "checklists", docId), { checked: newChecked }, { merge: true });
+  }
+
+  function resetAll() {
+    const fb = window._firebase;
+    if (!fb) return;
+    const { db, doc, setDoc } = fb;
+    setChecked({});
+    setDoc(doc(db, "checklists", docId), { checked: {} });
+  }
+
+  const doneCount = tasks.filter((_, i) => checked[i]).length;
+  const pct = Math.round((doneCount / tasks.length) * 100);
+  const allDone = doneCount === tasks.length;
+
+  return (
+    <div className="checklist-page" dir="rtl">
+      <div className="detail-hero" style={{padding:"10px 0 18px"}}>
+        <span className="dh-emoji">{emoji}</span>
+        <h1>{title}</h1>
+      </div>
+
+      <div className="progress-wrap">
+        <div className="progress-top">
+          <span className="p-label">{!synced ? "מתחבר..." : allDone ? "הכל בוצע! 🎉" : "התקדמות"}</span>
+          <span className="p-count">{doneCount} / {tasks.length}</span>
+        </div>
+        <div className="progress-track">
+          <div className={"progress-fill" + (allDone ? " done" : "")} style={{width: pct + "%"}} />
+        </div>
+      </div>
+
+      {tasks.map((task, i) => (
+        <div className={"check-item" + (checked[i] ? " checked" : "")} key={i} onClick={() => toggle(i)}>
+          <span className="check-box">✓</span>
+          <span className="check-text">{task}</span>
+        </div>
+      ))}
+
+      {allDone && <div className="checklist-done-banner">✅ סיימתם! משמרת מסודרת</div>}
+
+      <button className="checklist-reset" onClick={resetAll}>איפוס רשימה</button>
+      <div className="daily-note">🔄 מסתנכרן בזמן אמת בין כל המכשירים · מתאפס כל יום</div>
+    </div>
+  );
 }
 
 function App() {
@@ -792,6 +1015,8 @@ function App() {
   // which tab is currently "active" for the tab bar
   const activeTab = page === "home" ? "home"
     : page === "defrost" ? "defrost"
+    : page === "opening" ? "opening"
+    : page === "closing" ? "closing"
     : "recipes"; // recipes list or a recipe detail
 
   return (
@@ -817,6 +1042,16 @@ function App() {
               <span className="tile-emoji">❄️</span>
               <h3>הפשרות</h3>
               <span>רשימת הוצאות מהמקפיא</span>
+            </div>
+            <div className="dash-tile tile-open" onClick={() => navigate("opening")}>
+              <span className="tile-emoji">🌅</span>
+              <h3>פתיחה</h3>
+              <span>{OPENING_TASKS.length} משימות פתיחת משמרת</span>
+            </div>
+            <div className="dash-tile tile-close" onClick={() => navigate("closing")}>
+              <span className="tile-emoji">🌙</span>
+              <h3>סגירה</h3>
+              <span>{CLOSING_TASKS.length} משימות סגירת משמרת</span>
             </div>
           </div>
 
@@ -865,6 +1100,30 @@ function App() {
           </div>
         </>
 
+      ) : page === "opening" ? (
+        <>
+          <div className="top-bar">
+            <button className="top-back" onClick={() => navigate("home", true)}>→</button>
+            <h2>צ'ק ליסט פתיחה</h2>
+            <img src={LOGO} alt="Rapidos" />
+          </div>
+          <div className="page-body">
+            <ChecklistPage tasks={OPENING_TASKS} storageKey="opening" title="פתיחת משמרת" emoji="🌅" />
+          </div>
+        </>
+
+      ) : page === "closing" ? (
+        <>
+          <div className="top-bar">
+            <button className="top-back" onClick={() => navigate("home", true)}>→</button>
+            <h2>צ'ק ליסט סגירה</h2>
+            <img src={LOGO} alt="Rapidos" />
+          </div>
+          <div className="page-body">
+            <ChecklistPage tasks={CLOSING_TASKS} storageKey="closing" title="סגירת משמרת" emoji="🌙" />
+          </div>
+        </>
+
       ) : recipe ? (
         <>
           <div className="top-bar">
@@ -890,6 +1149,14 @@ function App() {
         <button className={"tab-item" + (activeTab === "defrost" ? " active" : "")} onClick={() => navigate("defrost")}>
           <span className="tab-icon">❄️</span>
           הפשרות
+        </button>
+        <button className={"tab-item" + (activeTab === "opening" ? " active" : "")} onClick={() => navigate("opening")}>
+          <span className="tab-icon">🌅</span>
+          פתיחה
+        </button>
+        <button className={"tab-item" + (activeTab === "closing" ? " active" : "")} onClick={() => navigate("closing")}>
+          <span className="tab-icon">🌙</span>
+          סגירה
         </button>
       </div>
     </div>
