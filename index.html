@@ -69,7 +69,7 @@
 <body>
 <div id="root"></div>
 <script type="text/babel">
-const { useState } = React;
+const { useState, useEffect } = React;
 
 function makeG(name, grams) { return { name, base: grams, type: "g" }; }
 function makeKg(name, kg) { return { name, base: kg * 1000, type: "g" }; }
@@ -421,6 +421,23 @@ function DefrostFlow({ onBack }) {
 function App() {
   const [page, setPage] = useState("home"); // "home" | "recipes" | "defrost" | number
   const recipe = typeof page === "number" ? recipesData.find(r => r.id === page) : null;
+  const scrollPositions = React.useRef({});
+
+  function navigate(newPage, isBack = false) {
+    if (!isBack) {
+      scrollPositions.current[page] = window.scrollY;
+    }
+    setPage(newPage);
+  }
+
+  useEffect(() => {
+    const saved = scrollPositions.current[page];
+    if (saved !== undefined) {
+      window.scrollTo(0, saved);
+    } else {
+      window.scrollTo(0, 0);
+    }
+  }, [page]);
 
   return (
     <div className="app" dir="rtl">
@@ -433,12 +450,12 @@ function App() {
             <p>בחר קטגוריה</p>
           </div>
           <div className="recipes-grid">
-            <div className="recipe-card" onClick={() => setPage("recipes")}>
+            <div className="recipe-card" onClick={() => navigate("recipes")}>
               <div className="recipe-emoji">📖</div>
               <div className="recipe-info"><h2>מתכונים</h2><span>חישוב כמויות לפי יחס</span></div>
               <span className="arrow">←</span>
             </div>
-            <div className="recipe-card" onClick={() => setPage("defrost")} style={{borderColor:"#1a2a3a"}}>
+            <div className="recipe-card" onClick={() => navigate("defrost")} style={{borderColor:"#1a2a3a"}}>
               <div className="recipe-emoji">❄️</div>
               <div className="recipe-info"><h2>הפשרות</h2><span>רשימת הוצאות מהמקפיא</span></div>
               <span className="arrow">←</span>
@@ -454,11 +471,11 @@ function App() {
             <p>הכנות המטבח — בחר מתכון לחישוב כמויות</p>
           </div>
           <div style={{padding:"12px 20px 4px",maxWidth:"500px",margin:"0 auto"}}>
-            <button className="back-btn" onClick={() => setPage("home")}>→ חזרה לתפריט</button>
+            <button className="back-btn" onClick={() => navigate("home", true)}>→ חזרה לתפריט</button>
           </div>
           <div className="recipes-grid" style={{paddingTop:"4px"}}>
             {recipesData.map(r => (
-              <div className="recipe-card" key={r.id} onClick={() => setPage(r.id)}>
+              <div className="recipe-card" key={r.id} onClick={() => navigate(r.id)}>
                 <div className="recipe-emoji">{r.emoji}</div>
                 <div className="recipe-info"><h2>{r.name}</h2><span>{r.ingredients.length} מרכיבים</span></div>
                 <span className="arrow">←</span>
@@ -467,9 +484,9 @@ function App() {
           </div>
         </>
       ) : page === "defrost" ? (
-        <DefrostFlow onBack={() => setPage("home")} />
+        <DefrostFlow onBack={() => navigate("home", true)} />
       ) : recipe ? (
-        <RecipeCard recipe={recipe} onBack={() => setPage("recipes")} />
+        <RecipeCard recipe={recipe} onBack={() => navigate("recipes", true)} />
       ) : null}
     </div>
   );
