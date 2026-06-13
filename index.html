@@ -1088,23 +1088,23 @@ function App() {
 
     const unsubTasks = db.collection("tasks").doc("daily")
       .onSnapshot(snap => {
-        setTasks(snap.exists() ? (snap.data().tasks || []) : []);
+        setTasks(snap.exists ? (snap.data().tasks || []) : []);
       }, err => console.log("tasks err:", err));
 
     const unsubDefrost = db.collection("defrost").doc("defrost_" + docId)
       .onSnapshot(snap => {
-        if (snap.exists()) setDefrostData({ items: snap.data().items || [], amounts: snap.data().amounts || {} });
+        if (snap.exists) setDefrostData({ items: snap.data().items || [], amounts: snap.data().amounts || {} });
         else setDefrostData({ items: [], amounts: {} });
       }, err => console.log("defrost err:", err));
 
     const unsubOpen = db.collection("checklists").doc("opening_" + docId)
       .onSnapshot(snap => {
-        setChecklistData(prev => ({ ...prev, opening: snap.exists() ? (snap.data().checked || {}) : {} }));
+        setChecklistData(prev => ({ ...prev, opening: snap.exists ? (snap.data().checked || {}) : {} }));
       }, err => console.log("opening err:", err));
 
     const unsubClose = db.collection("checklists").doc("closing_" + docId)
       .onSnapshot(snap => {
-        setChecklistData(prev => ({ ...prev, closing: snap.exists() ? (snap.data().checked || {}) : {} }));
+        setChecklistData(prev => ({ ...prev, closing: snap.exists ? (snap.data().checked || {}) : {} }));
       }, err => console.log("closing err:", err));
 
     return () => { unsubTasks(); unsubDefrost(); unsubOpen(); unsubClose(); };
