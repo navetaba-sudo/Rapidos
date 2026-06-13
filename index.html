@@ -807,6 +807,8 @@ function DefrostPlanPage({ onDone, onBack }) {
 // STEP 2: checklist at the warehouse
 function DefrostWarehousePage({ items, amounts, onBack, onReset }) {
   const [done, setDone] = useState({});
+  const safeItems = items || [];
+  const safeAmounts = amounts || {};
 
   function toggle(item) {
     setDone(prev => ({ ...prev, [item]: !prev[item] }));
@@ -822,14 +824,14 @@ function DefrostWarehousePage({ items, amounts, onBack, onReset }) {
         <div>
           <h1 style={{color:"#4fc3f7"}}>מחסן — הוצאה</h1>
           <div className="ratio-badge" style={{background:"rgba(79,195,247,0.1)",border:"1px solid rgba(79,195,247,0.3)",color:"#4fc3f7"}}>
-            {doneCount} / {items.length} הוצאו
+            {doneCount} / {safeItems.length} הוצאו
           </div>
         </div>
       </div>
 
       <div className="ingredients-list">
         <div className="section-label">סמן מה הוצא</div>
-        {items.map((item, i) => (
+        {safeItems.map((item, i) => (
           <div
             key={i}
             className={"ingredient-row" + (done[item] ? " active-ing" : "")}
@@ -849,21 +851,21 @@ function DefrostWarehousePage({ items, amounts, onBack, onReset }) {
               </div>
               <span className="ing-name" style={{fontSize:"1.05rem", textDecoration: done[item] ? "line-through" : "none"}}>{item}</span>
             </div>
-            {amounts[item] && (
+            {safeAmounts[item] && (
               <span style={{
                 fontSize:"0.9rem", fontWeight:"700",
                 color: done[item] ? "#7dd3a8" : "#f0ede6",
                 background:"#111", border:"1px solid #2a2a2a",
                 padding:"5px 10px", borderRadius:"8px", flexShrink:0
               }}>
-                {amounts[item]}
+                {safeAmounts[item]}
               </span>
             )}
           </div>
         ))}
       </div>
 
-      {doneCount === items.length && (
+      {doneCount === safeItems.length && (
         <div style={{textAlign:"center",padding:"20px 0 8px",color:"#7dd3a8",fontSize:"1rem",fontWeight:"700"}}>
           ✅ כל הפריטים הוצאו!
         </div>
@@ -1341,7 +1343,25 @@ function App() {
   );
 }
 
-ReactDOM.render(<App />, document.getElementById("root"));
+class ErrorBoundary extends React.Component {
+  constructor(props) { super(props); this.state = { error: null }; }
+  static getDerivedStateFromError(error) { return { error }; }
+  componentDidCatch(error, info) { console.log("App crashed:", error, info); }
+  render() {
+    if (this.state.error) {
+      return (
+        <div dir="rtl" style={{padding:"40px 24px",color:"#f0ede6",fontFamily:"Heebo,sans-serif"}}>
+          <h2 style={{color:"#e03a2c"}}>קרתה שגיאה</h2>
+          <p style={{color:"#888",marginTop:"10px",fontSize:"0.9rem"}}>{String(this.state.error && this.state.error.message)}</p>
+          <button onClick={() => location.reload()} style={{marginTop:"20px",padding:"10px 20px",borderRadius:"10px",background:"#e03a2c",border:"none",color:"#fff",fontFamily:"Heebo,sans-serif",cursor:"pointer"}}>רענן</button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+ReactDOM.render(<ErrorBoundary><App /></ErrorBoundary>, document.getElementById("root"));
 </script>
 </body>
 </html>
