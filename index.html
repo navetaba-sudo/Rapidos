@@ -518,7 +518,53 @@
       font-size: 0.68rem; color: #555; font-weight: 400;
     }
 
-    /* ── Tasks page ── */
+    /* ── Tasks day tabs ── */
+    .day-tabs {
+      display: flex; gap: 6px;
+      padding: 16px 18px 4px;
+      max-width: 500px; margin: 0 auto;
+    }
+    .day-tab {
+      flex: 1; position: relative;
+      background: #1a1a1a; border: 1px solid #2a2a2a;
+      border-radius: 12px; padding: 9px 4px;
+      color: #666; font-family: 'Heebo', sans-serif;
+      font-size: 0.82rem; font-weight: 600;
+      cursor: pointer; transition: all 0.15s;
+    }
+    .day-tab.active { background: #e03a2c; border-color: #e03a2c; color: #fff; }
+    .day-tab-badge {
+      position: absolute; top: -5px; right: -5px;
+      background: #e03a2c; color: #fff;
+      font-size: 0.62rem; font-weight: 700;
+      width: 16px; height: 16px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .day-tab.active .day-tab-badge { background: #fff; color: #e03a2c; }
+    .day-tab-badge.pending { background: #f0a050; }
+
+    /* ── Yesterday alert ── */
+    .yesterday-alert {
+      max-width: 500px; margin: 12px auto 0;
+      background: rgba(240,160,80,0.08);
+      border: 1px solid rgba(240,160,80,0.3);
+      border-radius: 14px; padding: 14px 16px;
+    }
+    .ya-text { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+    .ya-icon { font-size: 1rem; }
+    .ya-text span:last-child { font-size: 0.88rem; color: #f0a050; font-weight: 600; }
+    .ya-actions { display: flex; gap: 8px; }
+    .ya-btn {
+      flex: 1; padding: 8px; border-radius: 10px;
+      font-family: 'Heebo', sans-serif; font-size: 0.82rem; font-weight: 700;
+      cursor: pointer; border: 1px solid #333; background: #1a1a1a; color: #888;
+      transition: all 0.15s;
+    }
+    .ya-btn.primary { background: #f0a050; border-color: #f0a050; color: #0d0d0d; }
+
+    .task-item.from-yesterday { border-color: rgba(240,160,80,0.25); }
+    .task-item.from-yesterday .task-meta { color: #f0a050; }
+    .task-check.readonly { border-color: #2a2a2a; cursor: default; }
     .tasks-page { max-width: 500px; margin: 0 auto; padding: 18px 18px 40px; }
     .add-task-box {
       background: linear-gradient(135deg, #1a1a1a 0%, #161616 100%);
@@ -964,9 +1010,17 @@ const CLOSING_TASKS = [
   "לכבות אורות ושילוט, לנעול",
 ];
 
-function todayKey() {
+function todayKey(offset = 0) {
   const d = new Date();
+  d.setDate(d.getDate() + offset);
   return d.getFullYear() + "-" + (d.getMonth()+1) + "-" + d.getDate();
+}
+
+function dateLabel(offset) {
+  if (offset === -1) return "אתמול";
+  if (offset === 0) return "היום";
+  if (offset === 1) return "מחר";
+  return "יומיים";
 }
 
 function ChecklistPage({ tasks, storageKey, title, emoji, checked, onToggle, onReset }) {
@@ -1006,8 +1060,14 @@ function ChecklistPage({ tasks, storageKey, title, emoji, checked, onToggle, onR
   );
 }
 
-function TasksPage({ tasks, onSave }) {
+function TasksPage({ tasksByDay, onSave }) {
+  const [activeDay, setActiveDay] = useState(0); // -1, 0, 1, 2
   const [newText, setNewText] = useState("");
+  const [showYesterdayAlert, setShowYesterdayAlert] = useState(true);
+
+  const tasks = tasksByDay[activeDay] || [];
+  const yesterdayPending = (tasksByDay[-1] || []).filter(t => !t.done);
+  const showAlert = activeDay === 0 && yesterdayPending.length > 0 && showYesterdayAlert;
 
   function addTask() {
     const text = newText.trim();
@@ -1018,81 +1078,121 @@ function TasksPage({ tasks, onSave }) {
       done: false,
       createdAt: new Date().toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit" }),
     };
-    onSave([task, ...tasks]);
+    onSave([task, ...tasks], activeDay);
     setNewText("");
   }
 
   function toggleTask(id) {
-    onSave(tasks.map(t => t.id === id ? { ...t, done: !t.done } : t));
+    onSave(tasks.map(t => t.id === id ? { ...t, done: !t.done } : t), activeDay);
   }
 
   function deleteTask(id) {
-    onSave(tasks.filter(t => t.id !== id));
+    onSave(tasks.filter(t => t.id !== id), activeDay);
   }
 
   function clearDone() {
-    onSave(tasks.filter(t => !t.done));
+    onSave(tasks.filter(t => !t.done), activeDay);
+  }
+
+  function moveYesterdayToToday() {
+    const today = tasksByDay[0] || [];
+    const toMove = yesterdayPending.map(t => ({ ...t, id: Date.now().toString() + Math.random(), fromYesterday: true }));
+    onSave([...toMove, ...today], 0);
+    setShowYesterdayAlert(false);
   }
 
   const pending = tasks.filter(t => !t.done);
   const done = tasks.filter(t => t.done);
+  const isReadOnly = activeDay === -1;
 
   return (
     <div className="tasks-page" dir="rtl">
-      <div className="detail-hero" style={{padding:"10px 0 18px"}}>
-        <span className="dh-emoji">📋</span>
-        <h1>משימות היום</h1>
+      {/* Day tabs */}
+      <div className="day-tabs">
+        {[-1, 0, 1, 2].map(offset => (
+          <button
+            key={offset}
+            className={"day-tab" + (activeDay === offset ? " active" : "")}
+            onClick={() => setActiveDay(offset)}
+          >
+            {dateLabel(offset)}
+            {offset !== -1 && (tasksByDay[offset] || []).filter(t => !t.done).length > 0 && (
+              <span className="day-tab-badge">{(tasksByDay[offset] || []).filter(t => !t.done).length}</span>
+            )}
+            {offset === -1 && yesterdayPending.length > 0 && (
+              <span className="day-tab-badge pending">{yesterdayPending.length}</span>
+            )}
+          </button>
+        ))}
       </div>
 
-      <div className="add-task-box">
-        <input
-          className="add-task-input"
-          placeholder="הוסף משימה חדשה..."
-          value={newText}
-          onChange={e => setNewText(e.target.value)}
-          onKeyDown={e => e.key === "Enter" && addTask()}
-        />
-        <button className="add-task-btn" onClick={addTask} disabled={!newText.trim()}>+</button>
-      </div>
+      {/* Yesterday alert */}
+      {showAlert && (
+        <div className="yesterday-alert">
+          <div className="ya-text">
+            <span className="ya-icon">⚠️</span>
+            <span>{yesterdayPending.length} משימות לא בוצעו אתמול</span>
+          </div>
+          <div className="ya-actions">
+            <button className="ya-btn primary" onClick={moveYesterdayToToday}>העבר להיום</button>
+            <button className="ya-btn" onClick={() => setShowYesterdayAlert(false)}>התעלם</button>
+          </div>
+        </div>
+      )}
+
+      {/* Add task - only for future/today */}
+      {!isReadOnly && (
+        <div className="add-task-box">
+          <input
+            className="add-task-input"
+            placeholder={activeDay === 0 ? "הוסף משימה להיום..." : "הוסף משימה למחר..."}
+            value={newText}
+            onChange={e => setNewText(e.target.value)}
+            onKeyDown={e => e.key === "Enter" && addTask()}
+          />
+          <button className="add-task-btn" onClick={addTask} disabled={!newText.trim()}>+</button>
+        </div>
+      )}
 
       {tasks.length === 0 ? (
         <div className="tasks-empty">
           <span className="empty-icon">📋</span>
-          אין משימות כרגע<br/>
-          <span style={{color:"#333"}}>הוסף משימה למעלה</span>
+          {isReadOnly ? "לא היו משימות אתמול" : "אין משימות"}<br/>
+          {!isReadOnly && <span style={{color:"#333"}}>הוסף משימה למעלה</span>}
         </div>
       ) : (
         <>
           {pending.length > 0 && (
             <>
-              <div className="tasks-divider">ממתינות · {pending.length}</div>
+              <div className="tasks-divider">{isReadOnly ? "לא בוצעו" : "ממתינות"} · {pending.length}</div>
               {pending.map(task => (
-                <div className="task-item" key={task.id}>
-                  <span className="task-check" onClick={() => toggleTask(task.id)}>✓</span>
+                <div className={"task-item" + (task.fromYesterday ? " from-yesterday" : "")} key={task.id}>
+                  {!isReadOnly && <span className="task-check" onClick={() => toggleTask(task.id)}>✓</span>}
+                  {isReadOnly && <span className="task-check readonly">✕</span>}
                   <div className="task-body">
                     <div className="task-text">{task.text}</div>
-                    {task.createdAt && <div className="task-meta">נוסף ב-{task.createdAt}</div>}
+                    {task.createdAt && <div className="task-meta">נוסף ב-{task.createdAt}{task.fromYesterday ? " · מאתמול" : ""}</div>}
                   </div>
-                  <button className="task-delete" onClick={() => deleteTask(task.id)}>✕</button>
+                  {!isReadOnly && <button className="task-delete" onClick={() => deleteTask(task.id)}>✕</button>}
                 </div>
               ))}
             </>
           )}
-
           {done.length > 0 && (
             <>
               <div className="tasks-divider" style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                 <span>בוצעו · {done.length}</span>
-                <button onClick={clearDone} style={{background:"none",border:"none",color:"#e03a2c",fontFamily:"Heebo",fontSize:"0.72rem",cursor:"pointer",letterSpacing:"1px",textTransform:"uppercase",fontWeight:700}}>נקה</button>
+                {!isReadOnly && <button onClick={clearDone} style={{background:"none",border:"none",color:"#e03a2c",fontFamily:"Heebo",fontSize:"0.72rem",cursor:"pointer",letterSpacing:"1px",textTransform:"uppercase",fontWeight:700}}>נקה</button>}
               </div>
               {done.map(task => (
                 <div className="task-item done" key={task.id}>
-                  <span className="task-check" onClick={() => toggleTask(task.id)}>✓</span>
+                  {!isReadOnly && <span className="task-check" onClick={() => toggleTask(task.id)}>✓</span>}
+                  {isReadOnly && <span className="task-check" style={{background:"#3ecf8e",borderColor:"#3ecf8e",color:"#0d0d0d"}}>✓</span>}
                   <div className="task-body">
                     <div className="task-text">{task.text}</div>
                     {task.createdAt && <div className="task-meta">נוסף ב-{task.createdAt}</div>}
                   </div>
-                  <button className="task-delete" onClick={() => deleteTask(task.id)}>✕</button>
+                  {!isReadOnly && <button className="task-delete" onClick={() => deleteTask(task.id)}>✕</button>}
                 </div>
               ))}
             </>
@@ -1110,7 +1210,7 @@ function App() {
   const scrollPositions = React.useRef({});
 
   // ── Global Firebase state (survives navigation) ──
-  const [tasks, setTasks] = useState([]);
+  const [tasksByDay, setTasksByDay] = useState({ "-1": [], "0": [], "1": [], "2": [] });
   const [defrostData, setDefrostData] = useState({ items: [], amounts: {} });
   const [checklistData, setChecklistData] = useState({});
 
@@ -1119,10 +1219,14 @@ function App() {
     if (!db) return;
     const docId = todayKey();
 
-    const unsubTasks = db.collection("tasks").doc("daily")
-      .onSnapshot(snap => {
-        setTasks(snap.exists ? (snap.data().tasks || []) : []);
-      }, err => console.log("tasks err:", err));
+    // Listen to tasks for yesterday, today, tomorrow, day after
+    const unsubTasks = [-1, 0, 1, 2].map(offset => {
+      const key = todayKey(offset);
+      return db.collection("tasks").doc("day_" + key)
+        .onSnapshot(snap => {
+          setTasksByDay(prev => ({ ...prev, [offset]: snap.exists ? (snap.data().tasks || []) : [] }));
+        }, err => console.log("tasks err:", err));
+    });
 
     const unsubDefrost = db.collection("defrost").doc("defrost_" + docId)
       .onSnapshot(snap => {
@@ -1140,14 +1244,14 @@ function App() {
         setChecklistData(prev => ({ ...prev, closing: snap.exists ? (snap.data().checked || {}) : {} }));
       }, err => console.log("closing err:", err));
 
-    return () => { unsubTasks(); unsubDefrost(); unsubOpen(); unsubClose(); };
+    return () => { unsubTasks.forEach(u => u()); unsubDefrost(); unsubOpen(); unsubClose(); };
   }, []);
 
   // ── Save functions: update local state immediately, sync to Firebase if available ──
-  function saveTasks(updated) {
-    setTasks(updated);
+  function saveTasks(updated, offset = 0) {
+    setTasksByDay(prev => ({ ...prev, [offset]: updated }));
     const db = window._db;
-    if (db) db.collection("tasks").doc("daily").set({ tasks: updated }).catch(e => console.log("save tasks err:", e));
+    if (db) db.collection("tasks").doc("day_" + todayKey(offset)).set({ tasks: updated }).catch(e => console.log("save tasks err:", e));
   }
 
   function saveDefrost(items, amounts) {
@@ -1297,7 +1401,7 @@ function App() {
             <img src={LOGO} alt="Rapidos" />
           </div>
           <div className="page-body">
-            <TasksPage tasks={tasks} onSave={saveTasks} />
+            <TasksPage tasksByDay={tasksByDay} onSave={saveTasks} />
           </div>
         </>
 
