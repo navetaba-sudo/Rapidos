@@ -25,6 +25,10 @@
     };
     firebase.initializeApp(firebaseConfig);
     window._db = firebase.firestore();
+    console.log("Firebase initialized, db:", !!window._db);
+    window._db.collection("tasks").doc("test").get()
+      .then(() => console.log("Firestore connection OK"))
+      .catch(e => console.log("Firestore error:", e.code, e.message));
   </script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
