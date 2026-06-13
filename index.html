@@ -887,10 +887,11 @@ function DefrostWarehousePage({ items, amounts, onBack, onReset }) {
 function DefrostFlow({ onBack, defrostData, onSave, onReset }) {
   const [step, setStep] = useState("plan");
 
+  const itemCount = (defrostData.items || []).length;
   useEffect(() => {
-    if ((defrostData.items || []).length > 0) setStep("warehouse");
+    if (itemCount > 0) setStep("warehouse");
     else setStep("plan");
-  }, [defrostData.items && defrostData.items.length]);
+  }, [itemCount]);
 
   if (step === "warehouse") {
     return (
@@ -1107,26 +1108,23 @@ function App() {
     return () => { unsubTasks(); unsubDefrost(); unsubOpen(); unsubClose(); };
   }, []);
 
-  // ── Save functions ──
+  // ── Save functions: update local state immediately, sync to Firebase if available ──
   function saveTasks(updated) {
+    setTasks(updated);
     const db = window._db;
-    if (!db) return;
-    db.collection("tasks").doc("daily").set({ tasks: updated })
-      .catch(e => console.log("save tasks err:", e));
+    if (db) db.collection("tasks").doc("daily").set({ tasks: updated }).catch(e => console.log("save tasks err:", e));
   }
 
   function saveDefrost(items, amounts) {
+    setDefrostData({ items, amounts });
     const db = window._db;
-    if (!db) return;
-    db.collection("defrost").doc("defrost_" + todayKey()).set({ items, amounts })
-      .catch(e => console.log("save defrost err:", e));
+    if (db) db.collection("defrost").doc("defrost_" + todayKey()).set({ items, amounts }).catch(e => console.log("save defrost err:", e));
   }
 
   function saveChecklist(key, checked) {
+    setChecklistData(prev => ({ ...prev, [key]: checked }));
     const db = window._db;
-    if (!db) return;
-    db.collection("checklists").doc(key + "_" + todayKey()).set({ checked }, { merge: true })
-      .catch(e => console.log("save checklist err:", e));
+    if (db) db.collection("checklists").doc(key + "_" + todayKey()).set({ checked }, { merge: true }).catch(e => console.log("save checklist err:", e));
   }
 
   function navigate(newPage, isBack = false) {
