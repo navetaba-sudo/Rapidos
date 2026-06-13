@@ -1049,8 +1049,10 @@ function TasksPage() {
 
   function saveTasks(updated) {
     const db = window._db;
-    if (!db) return;
-    db.collection("tasks").doc("daily").set({ tasks: updated });
+    if (!db) { alert("DB לא מחובר"); return; }
+    db.collection("tasks").doc("daily").set({ tasks: updated })
+      .then(() => console.log("saved ok"))
+      .catch(e => alert("שגיאת שמירה: " + e.code + " - " + e.message));
   }
 
   function addTask() {
