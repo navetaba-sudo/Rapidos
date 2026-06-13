@@ -485,6 +485,39 @@
     .tile-close { background: linear-gradient(145deg, #241038 0%, #150a20 100%); }
     .tile-tasks { background: linear-gradient(145deg, #0c2e1a 0%, #081a0f 100%); }
 
+    /* ── Checklist popover ── */
+    .checklist-popover-overlay {
+      position: fixed; inset: 0; z-index: 90;
+    }
+    .checklist-popover {
+      position: fixed; bottom: 76px; right: calc(20% - 90px);
+      background: rgba(28,28,30,0.97);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 14px;
+      padding: 6px;
+      display: flex; flex-direction: column; gap: 2px;
+      min-width: 170px;
+      z-index: 95;
+      box-shadow: 0 -4px 24px rgba(0,0,0,0.6);
+      animation: fadeSlideUp 0.15s ease both;
+    }
+    .popover-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 11px 14px; border-radius: 10px;
+      cursor: pointer; border: none; background: none;
+      color: #f0ede6; font-family: 'Heebo', sans-serif;
+      font-size: 0.92rem; font-weight: 600; width: 100%;
+      text-align: right;
+      transition: background 0.12s;
+    }
+    .popover-item:hover { background: rgba(255,255,255,0.07); }
+    .popover-item:active { background: rgba(255,255,255,0.12); }
+    .popover-item .pi-emoji { font-size: 1.1rem; }
+    .popover-item .pi-badge {
+      margin-right: auto;
+      font-size: 0.68rem; color: #555; font-weight: 400;
+    }
+
     /* ── Tasks page ── */
     .tasks-page { max-width: 500px; margin: 0 auto; padding: 18px 18px 40px; }
     .add-task-box {
@@ -1129,7 +1162,10 @@ function App() {
     if (db) db.collection("checklists").doc(key + "_" + todayKey()).set({ checked }, { merge: true }).catch(e => console.log("save checklist err:", e));
   }
 
+  const [showChecklistPop, setShowChecklistPop] = useState(false);
+
   function navigate(newPage, isBack = false) {
+    setShowChecklistPop(false);
     if (!isBack) {
       scrollPositions.current[page] = window.scrollY;
     }
@@ -1156,8 +1192,9 @@ function App() {
   // which tab is currently "active" for the tab bar
   const activeTab = page === "home" ? "home"
     : page === "defrost" ? "defrost"
-    : page === "opening" ? "opening"
-    : page === "closing" ? "closing"
+    : page === "opening" ? "checklist"
+    : page === "closing" ? "checklist"
+    : page === "checklist" ? "checklist"
     : page === "tasks" ? "tasks"
     : "recipes"; // recipes list or a recipe detail
 
@@ -1264,11 +1301,34 @@ function App() {
           </div>
         </>
 
-      ) : page === "opening" ? (
+      ) : page === "checklist" ? (
         <>
           <div className="top-bar">
             <button className="top-back" onClick={() => navigate("home", true)}>→</button>
-            <h2>צ&#39;ק ליסט פתיחה</h2>
+            <h2>צ&#39;קליסטים</h2>
+            <img src={LOGO} alt="Rapidos" />
+          </div>
+          <div className="page-body">
+            <div className="recipes-tilegrid">
+              <div className="recipe-tile" onClick={() => navigate("opening")}>
+                <span className="rt-emoji">🌅</span>
+                <h3>פתיחת משמרת</h3>
+                <span>{Object.values(checklistData.opening || {}).filter(Boolean).length} / {OPENING_TASKS.length} בוצעו</span>
+              </div>
+              <div className="recipe-tile" onClick={() => navigate("closing")}>
+                <span className="rt-emoji">🌙</span>
+                <h3>סגירת משמרת</h3>
+                <span>{Object.values(checklistData.closing || {}).filter(Boolean).length} / {CLOSING_TASKS.length} בוצעו</span>
+              </div>
+            </div>
+          </div>
+        </>
+
+      ) : page === "opening" ? (
+        <>
+          <div className="top-bar">
+            <button className="top-back" onClick={() => navigate("checklist", true)}>→</button>
+            <h2>פתיחת משמרת</h2>
             <img src={LOGO} alt="Rapidos" />
           </div>
           <div className="page-body">
@@ -1287,8 +1347,8 @@ function App() {
       ) : page === "closing" ? (
         <>
           <div className="top-bar">
-            <button className="top-back" onClick={() => navigate("home", true)}>→</button>
-            <h2>צ&#39;ק ליסט סגירה</h2>
+            <button className="top-back" onClick={() => navigate("checklist", true)}>→</button>
+            <h2>סגירת משמרת</h2>
             <img src={LOGO} alt="Rapidos" />
           </div>
           <div className="page-body">
@@ -1317,6 +1377,24 @@ function App() {
         </>
       ) : null}
 
+      {showChecklistPop && (
+        <>
+          <div className="checklist-popover-overlay" onClick={() => setShowChecklistPop(false)} />
+          <div className="checklist-popover" dir="rtl">
+            <button className="popover-item" onClick={() => { setShowChecklistPop(false); navigate("opening"); }}>
+              <span className="pi-emoji">🌅</span>
+              פתיחת משמרת
+              <span className="pi-badge">{Object.values(checklistData.opening || {}).filter(Boolean).length}/{OPENING_TASKS.length}</span>
+            </button>
+            <button className="popover-item" onClick={() => { setShowChecklistPop(false); navigate("closing"); }}>
+              <span className="pi-emoji">🌙</span>
+              סגירת משמרת
+              <span className="pi-badge">{Object.values(checklistData.closing || {}).filter(Boolean).length}/{CLOSING_TASKS.length}</span>
+            </button>
+          </div>
+        </>
+      )}
+
       <div className="tab-bar">
         <button className={"tab-item" + (activeTab === "home" ? " active" : "")} onClick={() => navigate("home")}>
           <span className="tab-icon">🏠</span>
@@ -1334,9 +1412,9 @@ function App() {
           <span className="tab-icon">📋</span>
           משימות
         </button>
-        <button className={"tab-item" + (activeTab === "opening" || activeTab === "closing" ? " active" : "")} onClick={() => navigate("opening")}>
+        <button className={"tab-item" + (activeTab === "checklist" ? " active" : "")} onClick={() => setShowChecklistPop(p => !p)}>
           <span className="tab-icon">✅</span>
-          צ׳קליסט
+          צ&#39;קליסט
         </button>
       </div>
     </div>
