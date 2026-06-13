@@ -25,10 +25,6 @@
     };
     firebase.initializeApp(firebaseConfig);
     window._db = firebase.firestore();
-    console.log("Firebase initialized, db:", !!window._db);
-    window._db.collection("tasks").doc("test").get()
-      .then(() => console.log("Firestore connection OK"))
-      .catch(e => console.log("Firestore error:", e.code, e.message));
   </script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -889,31 +885,24 @@ function DefrostWarehousePage({ items, amounts, onBack, onReset }) {
 }
 
 function DefrostFlow({ onBack }) {
-  const [step, setStep] = useState("plan"); // "plan" | "warehouse"
+  const [step, setStep] = useState("plan");
   const [selectedItems, setSelectedItems] = useState([]);
   const [amounts, setAmounts] = useState({});
-  const [synced, setSynced] = useState(false);
   const docId = "defrost_" + todayKey();
 
   useEffect(() => {
-    // Timeout fallback — show content even if Firebase is slow
-    const timeout = setTimeout(() => setSynced(true), 3000);
-
     const db = window._db;
-    if (!db) { setSynced(true); return () => clearTimeout(timeout); }
-
+    if (!db) return;
     const ref = db.collection("defrost").doc(docId);
     const unsub = ref.onSnapshot(snap => {
-      clearTimeout(timeout);
       if (snap.exists()) {
         const data = snap.data();
         setSelectedItems(data.items || []);
         setAmounts(data.amounts || {});
         if ((data.items || []).length > 0) setStep("warehouse");
       }
-      setSynced(true);
-    }, () => { clearTimeout(timeout); setSynced(true); }); // error handler
-    return () => { unsub(); clearTimeout(timeout); };
+    }, err => console.log("defrost error:", err));
+    return () => unsub();
   }, [docId]);
 
   function saveToFirebase(items, amts) {
@@ -935,12 +924,6 @@ function DefrostFlow({ onBack }) {
     setAmounts({});
     saveToFirebase([], {});
   }
-
-  if (!synced) return (
-    <div style={{textAlign:"center",padding:"60px 0",color:"#555",fontSize:"0.9rem"}}>
-      מתחבר...
-    </div>
-  );
 
   if (step === "warehouse") {
     return (
@@ -985,24 +968,17 @@ function todayKey() {
 
 function ChecklistPage({ tasks, storageKey, title, emoji }) {
   const [checked, setChecked] = useState({});
-  const [synced, setSynced] = useState(false);
   const docId = storageKey + "_" + todayKey();
 
   useEffect(() => {
-    const timeout = setTimeout(() => setSynced(true), 3000);
     const db = window._db;
-    if (!db) { setSynced(true); return () => clearTimeout(timeout); }
+    if (!db) return;
     const ref = db.collection("checklists").doc(docId);
     const unsub = ref.onSnapshot(snap => {
-      clearTimeout(timeout);
-      if (snap.exists()) {
-        setChecked(snap.data().checked || {});
-      } else {
-        setChecked({});
-      }
-      setSynced(true);
-    }, () => { clearTimeout(timeout); setSynced(true); });
-    return () => { unsub(); clearTimeout(timeout); };
+      if (snap.exists()) setChecked(snap.data().checked || {});
+      else setChecked({});
+    }, err => console.log("checklist error:", err));
+    return () => unsub();
   }, [docId]);
 
   function toggle(i) {
@@ -1033,7 +1009,7 @@ function ChecklistPage({ tasks, storageKey, title, emoji }) {
 
       <div className="progress-wrap">
         <div className="progress-top">
-          <span className="p-label">{!synced ? "מתחבר..." : allDone ? "הכל בוצע! 🎉" : "התקדמות"}</span>
+          <span className="p-label">{allDone ? "הכל בוצע! 🎉" : "התקדמות"}</span>
           <span className="p-count">{doneCount} / {tasks.length}</span>
         </div>
         <div className="progress-track">
@@ -1059,23 +1035,16 @@ function ChecklistPage({ tasks, storageKey, title, emoji }) {
 function TasksPage() {
   const [tasks, setTasks] = useState([]);
   const [newText, setNewText] = useState("");
-  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const timeout = setTimeout(() => setLoading(false), 3000);
     const db = window._db;
-    if (!db) { setLoading(false); return () => clearTimeout(timeout); }
+    if (!db) return;
     const ref = db.collection("tasks").doc("daily");
     const unsub = ref.onSnapshot(snap => {
-      clearTimeout(timeout);
-      if (snap.exists()) {
-        setTasks(snap.data().tasks || []);
-      } else {
-        setTasks([]);
-      }
-      setLoading(false);
-    }, () => { clearTimeout(timeout); setLoading(false); });
-    return () => { unsub(); clearTimeout(timeout); };
+      if (snap.exists()) setTasks(snap.data().tasks || []);
+      else setTasks([]);
+    }, err => console.log("tasks error:", err));
+    return () => unsub();
   }, []);
 
   function saveTasks(updated) {
@@ -1138,9 +1107,7 @@ function TasksPage() {
         <button className="add-task-btn" onClick={addTask} disabled={!newText.trim()}>+</button>
       </div>
 
-      {loading ? (
-        <div style={{textAlign:"center",padding:"40px 0",color:"#555"}}>מתחבר...</div>
-      ) : tasks.length === 0 ? (
+      {tasks.length === 0 ? (
         <div className="tasks-empty">
           <span className="empty-icon">📋</span>
           אין משימות כרגע<br/>
