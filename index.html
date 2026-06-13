@@ -884,58 +884,25 @@ function DefrostWarehousePage({ items, amounts, onBack, onReset }) {
   );
 }
 
-function DefrostFlow({ onBack }) {
+function DefrostFlow({ onBack, defrostData, onSave, onReset }) {
   const [step, setStep] = useState("plan");
-  const [selectedItems, setSelectedItems] = useState([]);
-  const [amounts, setAmounts] = useState({});
-  const docId = "defrost_" + todayKey();
 
   useEffect(() => {
-    const db = window._db;
-    if (!db) return;
-    const ref = db.collection("defrost").doc(docId);
-    const unsub = ref.onSnapshot(snap => {
-      if (snap.exists()) {
-        const data = snap.data();
-        setSelectedItems(data.items || []);
-        setAmounts(data.amounts || {});
-        if ((data.items || []).length > 0) setStep("warehouse");
-      }
-    }, err => console.log("defrost error:", err));
-    return () => unsub();
-  }, [docId]);
-
-  function saveToFirebase(items, amts) {
-    const db = window._db;
-    if (!db) return;
-    db.collection("defrost").doc(docId).set({ items, amounts: amts });
-  }
-
-  function goToWarehouse(items, amts) {
-    setSelectedItems(items);
-    setAmounts(amts);
-    setStep("warehouse");
-    saveToFirebase(items, amts);
-  }
-
-  function handleReset() {
-    setStep("plan");
-    setSelectedItems([]);
-    setAmounts({});
-    saveToFirebase([], {});
-  }
+    if ((defrostData.items || []).length > 0) setStep("warehouse");
+    else setStep("plan");
+  }, [defrostData.items && defrostData.items.length]);
 
   if (step === "warehouse") {
     return (
       <DefrostWarehousePage
-        items={selectedItems}
-        amounts={amounts}
+        items={defrostData.items}
+        amounts={defrostData.amounts}
         onBack={() => setStep("plan")}
-        onReset={handleReset}
+        onReset={() => { onReset(); setStep("plan"); }}
       />
     );
   }
-  return <DefrostPlanPage onDone={goToWarehouse} onBack={onBack} />;
+  return <DefrostPlanPage onDone={(items, amounts) => onSave(items, amounts)} onBack={onBack} />;
 }
 
 const OPENING_TASKS = [
@@ -966,36 +933,7 @@ function todayKey() {
   return d.getFullYear() + "-" + (d.getMonth()+1) + "-" + d.getDate();
 }
 
-function ChecklistPage({ tasks, storageKey, title, emoji }) {
-  const [checked, setChecked] = useState({});
-  const docId = storageKey + "_" + todayKey();
-
-  useEffect(() => {
-    const db = window._db;
-    if (!db) return;
-    const ref = db.collection("checklists").doc(docId);
-    const unsub = ref.onSnapshot(snap => {
-      if (snap.exists()) setChecked(snap.data().checked || {});
-      else setChecked({});
-    }, err => console.log("checklist error:", err));
-    return () => unsub();
-  }, [docId]);
-
-  function toggle(i) {
-    const db = window._db;
-    if (!db) return;
-    const newChecked = { ...checked, [i]: !checked[i] };
-    setChecked(newChecked);
-    db.collection("checklists").doc(docId).set({ checked: newChecked }, { merge: true });
-  }
-
-  function resetAll() {
-    const db = window._db;
-    if (!db) return;
-    setChecked({});
-    db.collection("checklists").doc(docId).set({ checked: {} });
-  }
-
+function ChecklistPage({ tasks, storageKey, title, emoji, checked, onToggle, onReset }) {
   const doneCount = tasks.filter((_, i) => checked[i]).length;
   const pct = Math.round((doneCount / tasks.length) * 100);
   const allDone = doneCount === tasks.length;
@@ -1018,7 +956,7 @@ function ChecklistPage({ tasks, storageKey, title, emoji }) {
       </div>
 
       {tasks.map((task, i) => (
-        <div className={"check-item" + (checked[i] ? " checked" : "")} key={i} onClick={() => toggle(i)}>
+        <div className={"check-item" + (checked[i] ? " checked" : "")} key={i} onClick={() => onToggle(i)}>
           <span className="check-box">✓</span>
           <span className="check-text">{task}</span>
         </div>
@@ -1026,34 +964,14 @@ function ChecklistPage({ tasks, storageKey, title, emoji }) {
 
       {allDone && <div className="checklist-done-banner">✅ סיימתם! משמרת מסודרת</div>}
 
-      <button className="checklist-reset" onClick={resetAll}>איפוס רשימה</button>
+      <button className="checklist-reset" onClick={onReset}>איפוס רשימה</button>
       <div className="daily-note">🔄 מסתנכרן בזמן אמת בין כל המכשירים · מתאפס כל יום</div>
     </div>
   );
 }
 
-function TasksPage() {
-  const [tasks, setTasks] = useState([]);
+function TasksPage({ tasks, onSave }) {
   const [newText, setNewText] = useState("");
-
-  useEffect(() => {
-    const db = window._db;
-    if (!db) return;
-    const ref = db.collection("tasks").doc("daily");
-    const unsub = ref.onSnapshot(snap => {
-      if (snap.exists()) setTasks(snap.data().tasks || []);
-      else setTasks([]);
-    }, err => console.log("tasks error:", err));
-    return () => unsub();
-  }, []);
-
-  function saveTasks(updated) {
-    const db = window._db;
-    if (!db) { alert("DB לא מחובר"); return; }
-    db.collection("tasks").doc("daily").set({ tasks: updated })
-      .then(() => console.log("saved ok"))
-      .catch(e => alert("שגיאת שמירה: " + e.code + " - " + e.message));
-  }
 
   function addTask() {
     const text = newText.trim();
@@ -1064,28 +982,20 @@ function TasksPage() {
       done: false,
       createdAt: new Date().toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit" }),
     };
-    const updated = [task, ...tasks];
-    setTasks(updated);
-    saveTasks(updated);
+    onSave([task, ...tasks]);
     setNewText("");
   }
 
   function toggleTask(id) {
-    const updated = tasks.map(t => t.id === id ? { ...t, done: !t.done } : t);
-    setTasks(updated);
-    saveTasks(updated);
+    onSave(tasks.map(t => t.id === id ? { ...t, done: !t.done } : t));
   }
 
   function deleteTask(id) {
-    const updated = tasks.filter(t => t.id !== id);
-    setTasks(updated);
-    saveTasks(updated);
+    onSave(tasks.filter(t => t.id !== id));
   }
 
   function clearDone() {
-    const updated = tasks.filter(t => !t.done);
-    setTasks(updated);
-    saveTasks(updated);
+    onSave(tasks.filter(t => !t.done));
   }
 
   const pending = tasks.filter(t => !t.done);
@@ -1159,9 +1069,65 @@ function TasksPage() {
 }
 
 function App() {
-  const [page, setPage] = useState("home"); // "home" | "recipes" | "defrost" | number
+  const [page, setPage] = useState("home");
   const recipe = typeof page === "number" ? recipesData.find(r => r.id === page) : null;
   const scrollPositions = React.useRef({});
+
+  // ── Global Firebase state (survives navigation) ──
+  const [tasks, setTasks] = useState([]);
+  const [defrostData, setDefrostData] = useState({ items: [], amounts: {} });
+  const [checklistData, setChecklistData] = useState({});
+
+  useEffect(() => {
+    const db = window._db;
+    if (!db) return;
+    const docId = todayKey();
+
+    const unsubTasks = db.collection("tasks").doc("daily")
+      .onSnapshot(snap => {
+        setTasks(snap.exists() ? (snap.data().tasks || []) : []);
+      }, err => console.log("tasks err:", err));
+
+    const unsubDefrost = db.collection("defrost").doc("defrost_" + docId)
+      .onSnapshot(snap => {
+        if (snap.exists()) setDefrostData({ items: snap.data().items || [], amounts: snap.data().amounts || {} });
+        else setDefrostData({ items: [], amounts: {} });
+      }, err => console.log("defrost err:", err));
+
+    const unsubOpen = db.collection("checklists").doc("opening_" + docId)
+      .onSnapshot(snap => {
+        setChecklistData(prev => ({ ...prev, opening: snap.exists() ? (snap.data().checked || {}) : {} }));
+      }, err => console.log("opening err:", err));
+
+    const unsubClose = db.collection("checklists").doc("closing_" + docId)
+      .onSnapshot(snap => {
+        setChecklistData(prev => ({ ...prev, closing: snap.exists() ? (snap.data().checked || {}) : {} }));
+      }, err => console.log("closing err:", err));
+
+    return () => { unsubTasks(); unsubDefrost(); unsubOpen(); unsubClose(); };
+  }, []);
+
+  // ── Save functions ──
+  function saveTasks(updated) {
+    const db = window._db;
+    if (!db) return;
+    db.collection("tasks").doc("daily").set({ tasks: updated })
+      .catch(e => console.log("save tasks err:", e));
+  }
+
+  function saveDefrost(items, amounts) {
+    const db = window._db;
+    if (!db) return;
+    db.collection("defrost").doc("defrost_" + todayKey()).set({ items, amounts })
+      .catch(e => console.log("save defrost err:", e));
+  }
+
+  function saveChecklist(key, checked) {
+    const db = window._db;
+    if (!db) return;
+    db.collection("checklists").doc(key + "_" + todayKey()).set({ checked }, { merge: true })
+      .catch(e => console.log("save checklist err:", e));
+  }
 
   function navigate(newPage, isBack = false) {
     if (!isBack) {
@@ -1277,7 +1243,12 @@ function App() {
             <img src={LOGO} alt="Rapidos" />
           </div>
           <div className="page-body">
-            <DefrostFlow onBack={() => navigate("home", true)} />
+            <DefrostFlow
+              onBack={() => navigate("home", true)}
+              defrostData={defrostData}
+              onSave={saveDefrost}
+              onReset={() => saveDefrost([], {})}
+            />
           </div>
         </>
 
@@ -1289,7 +1260,7 @@ function App() {
             <img src={LOGO} alt="Rapidos" />
           </div>
           <div className="page-body">
-            <TasksPage />
+            <TasksPage tasks={tasks} onSave={saveTasks} />
           </div>
         </>
 
@@ -1301,7 +1272,15 @@ function App() {
             <img src={LOGO} alt="Rapidos" />
           </div>
           <div className="page-body">
-            <ChecklistPage tasks={OPENING_TASKS} storageKey="opening" title="פתיחת משמרת" emoji="🌅" />
+            <ChecklistPage
+                tasks={OPENING_TASKS}
+                storageKey="opening"
+                title="פתיחת משמרת"
+                emoji="🌅"
+                checked={checklistData.opening || {}}
+                onToggle={i => saveChecklist("opening", { ...(checklistData.opening || {}), [i]: !(checklistData.opening || {})[i] })}
+                onReset={() => saveChecklist("opening", {})}
+              />
           </div>
         </>
 
@@ -1313,7 +1292,15 @@ function App() {
             <img src={LOGO} alt="Rapidos" />
           </div>
           <div className="page-body">
-            <ChecklistPage tasks={CLOSING_TASKS} storageKey="closing" title="סגירת משמרת" emoji="🌙" />
+            <ChecklistPage
+                tasks={CLOSING_TASKS}
+                storageKey="closing"
+                title="סגירת משמרת"
+                emoji="🌙"
+                checked={checklistData.closing || {}}
+                onToggle={i => saveChecklist("closing", { ...(checklistData.closing || {}), [i]: !(checklistData.closing || {})[i] })}
+                onReset={() => saveChecklist("closing", {})}
+              />
           </div>
         </>
 
